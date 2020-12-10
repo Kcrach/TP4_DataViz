@@ -1,7 +1,7 @@
 var width = 700, height = 580;
-
-departement = "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson"
-data = "https://lyondataviz.github.io/teaching/lyon1-m2/2020/data/covid-france-mars-avril.csv"
+var padx = 20;
+var pady = 30;
+data = "https://lyondataviz.github.io/teaching/lyon1-m2/2020/data/data_network.json"
 
 var svg = d3
     .select("body")
@@ -12,92 +12,68 @@ var svg = d3
 // On rajoute un groupe englobant toute la visualisation pour plus tard
 var g = svg.append("g");
 
-var projection = d3
-    //Centrer la carte de la France
-    .geoConicConformal().center([2.454071, 46.279229])
-    .translate([width / 2, height / 2])
-    .scale([2500]);
-
-// On définit l’échelle de couleur
-var color = d3.scaleQuantize()
-    .range(["#edf8e9","#bae4b3","#74c476","#31a354","#006d2c"]);
-
-var path = d3.geoPath().projection(projection);
-
-var tooltip = d3.select('body').append('div')
-    .attr('class', 'hidden tooltip');
-
 d3.select("#divSlider").style("display", "none")
 
-daysArray = []
-daysArraySet = false
+function getArc(x1, x2) {
+    return [
+        "M",
+        x1,
+        height - pady, // the arc starts at the coordinate x=start, y=height-30 (where the starting node is)
+        "A", // A for elliptical arc
+        (x1 - x2) / 2,
+        ",", // coordinates of the inflexion point. Height of this point is proportional with start - end distance
+        (x1 - x2) / 2,
+        0,
+        0,
+        ",",
+        x1 < x2 ? 1 : 0,
+        x2,
+        ",",
+        height - pady
+    ].join(" ");
+}
 
-d3.csv(data).then(function(data) {
-        //Set input domain for color scale
-        color.domain([
-            d3.min(data, function(d) { 
-                return d.hosp;
-            }),
-            d3.max(data, function(d) {
-                return d.hosp; 
-            })
-        ]);
+d3.json(data).then(function(data) {
 
-        d3.json(departement).then(function(json) {
-            for (var i = 0; i < data.length; i++) {
-                //Nom dU departement
-                var dataDep = data[i].dep;
+    // List of node names
+    let allNodes = data.nodes.map(function (d) { return d.name; });
+    let scale = d3.scalePoint().domain(allNodes).range([0, width - 40]);
 
-                //Jour
-                var dataDay = data[i].jour
+    svg.selectAll("circle")
+        .data(allNodes)
+        .enter()
+        .append("circle")
+        .attr("cx", (i) => scale(i) + padx)
+        .attr("cy", height - pady)
+        .attr("r", 10)
+        .style("stroke", "lightgreen")
+        .style("stroke-width", 10);
 
-                //Valeur associee a l'etat
-                var dataValue = parseInt(data[i].hosp);
+    svg.selectAll("text")
+        .data(allNodes)
+        .enter()
+        .append("text")
+        .attr('font-size', '14')
+        .attr('font-weight', 'bold')
+        .attr('fill', "blue")
+        .attr("x", (i) => scale(i) + padx + 10)
+        .attr("y", height - pady + 25)
+        .text(d => d);
 
-                //Recherche de l'etat dans le GeoJSON
-                for (var j = 0; j < json.features.length; j++) {
-                    var jsonDep = json.features[j].properties.code;
-                    if (dataDep == jsonDep && dataDay == "23/03/2020") {
-                        //On injecte la valeur de l'Etat dans le json
-                        json.features[j].properties.value = dataValue;
+    //Créer table de correspondance
+    let idToNodeName = {};
+    data.nodes.forEach(function (n) {
+        idToNodeName[n.id] = n;
+    });
+    let linksData = data.links;
+    linksData.map((x, i) => {
+        let x1 = scale(idToNodeName[x.source].name);
+        let x2 = scale(idToNodeName[x.target].name);
 
-                        //Pas besoin de chercher plus loin
-                        break;
-                    }
-                }
-            }
+        svg.append("path")
+            .attr("d", getArc(x1 + padx, x2 + padx))
+            .attr("fill", "none")
+            .attr("stroke", "blue")
+    });
 
-            g.selectAll("path")
-                .data(json.features)
-                .enter()
-                .append("path")
-                .attr("d", path)
-                .style("fill", function(d) {
-                    //on prend la valeur recuperee plus haut
-                    var value = d.properties.value;
-
-                    if (value) {
-                        return color(value);
-                    } else {
-                        // si pas de valeur alors en gris
-                        return "#ccc";
-                    }
-                })
-                .on('mousemove', (event, d) => {
-                    // on recupere la position de la souris
-                    var mousePosition = d3.pointer(event);
-                    // on affiche le toolip
-                    tooltip.classed('hidden', false)
-                        // on positionne le tooltip en fonction 
-                        // de la position de la souris
-                        .attr('style', 'left:' + (mousePosition[0] + 15) +
-                                'px; top:' + (mousePosition[1] - 35) + 'px')
-                        // on recupere le nom de l'etat 
-                        .html(d.properties.nom);
-                })
-                .on('mouseout', () => {
-                    // on cache le toolip
-                    tooltip.classed('hidden', true);
-                });     
-        });
     });
