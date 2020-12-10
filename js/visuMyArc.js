@@ -3,6 +3,9 @@ var padx = 20;
 var pady = 30;
 data = "https://lyondataviz.github.io/teaching/lyon1-m2/2020/data/data_network.json"
 
+var linksData;
+var allNodes
+
 var svg = d3
     .select("body")
     .append("svg")
@@ -13,6 +16,32 @@ var svg = d3
 var g = svg.append("g");
 
 d3.select("#divSlider").style("display", "none")
+
+function handleMouseOver(d, l) {
+    related = [];
+    i = allNodes.indexOf(l);
+    for (var ind = 0; ind < linksData.length; ind++) {
+        x = linksData[ind];
+        if (x.source == i || x.target == i) {
+            related.push(x);
+        }
+    }
+    //console.log(related)
+    d3.selectAll("path")
+        .filter(isRelated(x, related))
+        .attr("fill", "red");
+}
+
+function isRelated(arc, related) {
+    console.log(arc)
+    console.log(related)
+    console.log(related.indexOf(arc) != -1)
+    return related.indexOf(arc) != -1;
+}
+
+function handleMouseOut() {
+
+}
 
 function getArc(x1, x2) {
     return [
@@ -35,10 +64,10 @@ function getArc(x1, x2) {
 
 d3.json(data).then(function(data) {
 
+    linksData = data.links;
     // List of node names
-    let allNodes = data.nodes.map(function (d) { return d.name; });
+    allNodes = data.nodes.map(function (d) { return d.name; });
     let scale = d3.scalePoint().domain(allNodes).range([0, width - 40]);
-
     svg.selectAll("circle")
         .data(allNodes)
         .enter()
@@ -47,7 +76,9 @@ d3.json(data).then(function(data) {
         .attr("cy", height - pady)
         .attr("r", 10)
         .style("stroke", "lightgreen")
-        .style("stroke-width", 10);
+        .style("stroke-width", 10)
+        .on("mouseover", handleMouseOver)
+        .on("mouseout", handleMouseOut);
 
     svg.selectAll("text")
         .data(allNodes)
@@ -65,7 +96,7 @@ d3.json(data).then(function(data) {
     data.nodes.forEach(function (n) {
         idToNodeName[n.id] = n;
     });
-    let linksData = data.links;
+
     linksData.map((x, i) => {
         let x1 = scale(idToNodeName[x.source].name);
         let x2 = scale(idToNodeName[x.target].name);
@@ -77,3 +108,4 @@ d3.json(data).then(function(data) {
     });
 
     });
+
